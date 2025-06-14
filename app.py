@@ -26,8 +26,9 @@ def contact():
     subject = data.get("subject")
     message = data.get("message")
 
-    email_subject = f"New Contact Form Submission: {subject}"
-    email_body = f"""
+    # Email to Admin
+    admin_subject = f"New Contact Form Submission: {subject}"
+    admin_body = f"""
     You have received a new message from the contact form:
 
     Name: {first_name} {last_name}
@@ -39,18 +40,46 @@ def contact():
     Message:
     {message}
     """
+# Email to User (Auto-reply)
+    user_subject = "Thank You for Contacting Pixdot!"
+    user_body = f"""
+    Hi {first_name},
+
+    Thank you for reaching out to Pixdot!
+
+    We’ve received your message, and our team will get back to you shortly. We appreciate your interest and look forward to connecting with you soon.
+
+    📞 Need urgent help? Call us at +91-87789 96278, 87789 64644
+
+    Meanwhile, feel free to explore our recent work:  
+    🌐 Website: www.pixdotsolutins.com  
+
+    Have a great day!  
+    - Team Pixdot
+    """
+
 
     try:
-        msg = MIMEMultipart()
-        msg['From'] = GMAIL_USER
-        msg['To'] = GMAIL_USER
-        msg['Subject'] = email_subject
-        msg.attach(MIMEText(email_body, 'plain'))
-
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(GMAIL_USER, GMAIL_PASSWORD)
-        server.send_message(msg)
+
+        # Send to Admin
+        admin_msg = MIMEMultipart()
+        admin_msg['From'] = GMAIL_USER
+        admin_msg['To'] = GMAIL_USER
+        admin_msg['Subject'] = admin_subject
+        admin_msg.attach(MIMEText(admin_body, 'plain'))
+        server.send_message(admin_msg)
+
+        # Send to User
+        user_msg = MIMEMultipart()
+        user_msg['From'] = GMAIL_USER
+        user_msg['To'] = email
+        user_msg['Subject'] = user_subject
+        user_msg.attach(MIMEText(user_body, 'plain'))
+        server.send_message(user_msg)
+
         server.quit()
 
         return jsonify({"message": "Message sent successfully via email!"}), 200
@@ -61,4 +90,5 @@ def contact():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
 
