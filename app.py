@@ -6,6 +6,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
 import json
+import mysql.connector
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,12 +19,18 @@ CORS(app)
 # ---------------------------
 USERNAME = "Pixadmin"
 PASSWORD = "Pixd.t"
-DATA_FILE = "CasestudyDetails.json"
 UPLOAD_FOLDER = "uploads"
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 
 GMAIL_USER = os.getenv("GMAIL_USER")
 GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD")
+
+DB_CONFIG = {
+    "host": os.getenv("DB_HOST"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "database": os.getenv("DB_NAME")
+}
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
@@ -33,6 +40,9 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def get_db_connection():
+    return mysql.connector.connect(**DB_CONFIG)
+
 # ---------------------------
 # STATIC FILE SERVE
 # ---------------------------
@@ -41,12 +51,11 @@ def uploaded_file(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
 
 # ---------------------------
-# ✅ FIXED IMAGE UPLOAD ROUTE (supports image + file)
+# IMAGE UPLOAD ROUTE
 # ---------------------------
 @app.route("/api/upload-image", methods=["POST"])
 def upload_image():
     file = request.files.get("image") or request.files.get("file")
-
     if not file or file.filename == "":
         return jsonify({"error": "No selected file"}), 400
 
@@ -55,20 +64,13 @@ def upload_image():
         unique_filename = f"{int(float(os.times()[4]*1000))}_{filename}"
         save_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
         file.save(save_path)
-
-        # ❌ This returns only partial path
-        # return jsonify({"imageUrl": f"/uploads/{unique_filename}"})
-
-        # ✅ FIX: Return FULL image URL
         full_url = f"https://pixdotbackend.onrender.com/uploads/{unique_filename}"
-        return jsonify({"imageUrl": full_url})  # 👈 this is key
+        return jsonify({"imageUrl": full_url}), 200
 
-    else:
-        return jsonify({"error": "Invalid file type"}), 400
-
+    return jsonify({"error": "Invalid file type"}), 400
 
 # ---------------------------
-# CONTACT FORM EMAIL ROUTE
+# CONTACT EMAIL ROUTE
 # ---------------------------
 @app.route("/api/contact", methods=["POST"])
 def contact():
@@ -83,8 +85,6 @@ def contact():
 
     admin_subject = f"New Contact Form Submission: {subject}"
     admin_body = f"""
-    You have received a new message from the contact form:
-
     Name: {first_name} {last_name}
     Email: {email}
     Phone: {phone}
@@ -100,13 +100,10 @@ def contact():
     Hi {first_name},
 
     Thank you for reaching out to Pixdot!
+    We'll get back to you shortly.
 
-    We’ve received your message, and our team will get back to you shortly.
-
-    📞 Need urgent help? Call us at +91-87789 96278, 87789 64644
-    🌐 Website: www.pixdotsolutions.com
-
-    - Team Pixdot
+    📞 +91-87789 96278, 87789 64644
+    🌐 www.pixdotsolutions.com
     """
 
     try:
@@ -114,7 +111,6 @@ def contact():
         server.starttls()
         server.login(GMAIL_USER, GMAIL_PASSWORD)
 
-        # Admin email
         admin_msg = MIMEMultipart()
         admin_msg["From"] = GMAIL_USER
         admin_msg["To"] = GMAIL_USER
@@ -122,7 +118,6 @@ def contact():
         admin_msg.attach(MIMEText(admin_body, "plain"))
         server.send_message(admin_msg)
 
-        # User reply
         user_msg = MIMEMultipart()
         user_msg["From"] = GMAIL_USER
         user_msg["To"] = email
@@ -138,7 +133,7 @@ def contact():
         return jsonify({"error": "Failed to send email."}), 500
 
 # ---------------------------
-# ADMIN LOGIN ROUTE
+# ADMIN LOGIN
 # ---------------------------
 @app.route("/api/login", methods=["POST"])
 def login():
@@ -148,34 +143,34 @@ def login():
 
     if username == USERNAME and password == PASSWORD:
         return jsonify({"success": True}), 200
-    else:
-        return jsonify({"success": False, "message": "Invalid credentials"}), 401
+    return jsonify({"success": False, "message": "Invalid credentials"}), 401
 
 # ---------------------------
-# CASE STUDY ROUTES
+# CASE STUDY ROUTES (MySQL)
 # ---------------------------
 @app.route("/api/case-studies", methods=["GET"])
 def get_case_studies():
     try:
-        if os.path.exists(DATA_FILE):
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        else:
-            data = []
-        return jsonify(data)
+        db = get_db_connection()
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM case_studies")
+        rows = cursor.fetchall()
+        db.close()
+        return jsonify(rows)
     except Exception as e:
-        print("Error reading case studies:", e)
-        return jsonify({"error": "Failed to read case studies"}), 500
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/case-studies/<int:case_id>", methods=["GET"])
 def get_case_study(case_id):
     try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        case_study = next((item for item in data if item["id"] == case_id), None)
-        if not case_study:
+        db = get_db_connection()
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM case_studies WHERE id = %s", (case_id,))
+        result = cursor.fetchone()
+        db.close()
+        if not result:
             return jsonify({"error": "Not found"}), 404
-        return jsonify(case_study)
+        return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -183,20 +178,20 @@ def get_case_study(case_id):
 def add_case_study():
     try:
         data = request.get_json()
-        if os.path.exists(DATA_FILE):
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                existing = json.load(f)
-        else:
-            existing = []
-
-        data["id"] = max([item["id"] for item in existing], default=0) + 1
-        existing.append(data)
-
-        with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(existing, f, indent=2)
-
+        db = get_db_connection()
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO case_studies
+            (title, client, date, duration, industry, category, image, side_images, content)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            data["title"], data["client"], data["date"], data["duration"],
+            data["industry"], data["category"], data["image"],
+            json.dumps(data["side_images"]), json.dumps(data["content"])
+        ))
+        db.commit()
+        db.close()
         return jsonify({"success": True, "message": "Case study added"}), 201
-
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -204,50 +199,43 @@ def add_case_study():
 def update_case_study(case_id):
     try:
         data = request.get_json()
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            studies = json.load(f)
-
-        updated = False
-        for i, study in enumerate(studies):
-            if study["id"] == case_id:
-                studies[i] = {**study, **data, "id": case_id}
-                updated = True
-                break
-
-        if not updated:
-            return jsonify({"success": False, "message": "Not found"}), 404
-
-        with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(studies, f, indent=2)
-
+        db = get_db_connection()
+        cursor = db.cursor()
+        cursor.execute("""
+            UPDATE case_studies SET
+            title=%s, client=%s, date=%s, duration=%s,
+            industry=%s, category=%s, image=%s,
+            side_images=%s, content=%s
+            WHERE id=%s
+        """, (
+            data["title"], data["client"], data["date"], data["duration"],
+            data["industry"], data["category"], data["image"],
+            json.dumps(data["side_images"]), json.dumps(data["content"]), case_id
+        ))
+        db.commit()
+        db.close()
         return jsonify({"success": True, "message": "Updated"}), 200
-
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/api/delete-case-study/<int:case_id>", methods=["DELETE"])
 def delete_case_study(case_id):
     try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        updated = [item for item in data if item["id"] != case_id]
-
-        with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(updated, f, indent=2)
-
+        db = get_db_connection()
+        cursor = db.cursor()
+        cursor.execute("DELETE FROM case_studies WHERE id = %s", (case_id,))
+        db.commit()
+        db.close()
         return jsonify({"success": True, "message": "Deleted"}), 200
-
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 # ---------------------------
-# MAIN ENTRY POINT
+# MAIN ENTRY
 # ---------------------------
 if __name__ == "__main__":
     if not os.path.exists("uploads"):
         os.makedirs("uploads")
     app.run(debug=True)
-
 
 
