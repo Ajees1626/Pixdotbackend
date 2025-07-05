@@ -41,23 +41,22 @@ def uploaded_file(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
 
 # ---------------------------
-# IMAGE UPLOAD ROUTE
+# ✅ FIXED IMAGE UPLOAD ROUTE (supports image + file)
 # ---------------------------
 @app.route("/api/upload-image", methods=["POST"])
 def upload_image():
-    if "file" not in request.files:
-        return jsonify({"error": "No file part"}), 400
+    file = request.files.get("image") or request.files.get("file")
 
-    file = request.files["file"]
-    if file.filename == "":
+    if not file or file.filename == "":
         return jsonify({"error": "No selected file"}), 400
 
-    if file and allowed_file(file.filename):
+    if allowed_file(file.filename):
         filename = secure_filename(file.filename)
         unique_filename = f"{int(float(os.times()[4]*1000))}_{filename}"
         save_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
         file.save(save_path)
-        return jsonify({"url": f"/uploads/{unique_filename}"}), 200
+
+        return jsonify({"imageUrl": f"/uploads/{unique_filename}"}), 200
     else:
         return jsonify({"error": "Invalid file type"}), 400
 
@@ -77,6 +76,8 @@ def contact():
 
     admin_subject = f"New Contact Form Submission: {subject}"
     admin_body = f"""
+    You have received a new message from the contact form:
+
     Name: {first_name} {last_name}
     Email: {email}
     Phone: {phone}
@@ -92,7 +93,11 @@ def contact():
     Hi {first_name},
 
     Thank you for reaching out to Pixdot!
-    We’ve received your message and our team will get back to you shortly.
+
+    We’ve received your message, and our team will get back to you shortly.
+
+    📞 Need urgent help? Call us at +91-87789 96278, 87789 64644
+    🌐 Website: www.pixdotsolutions.com
 
     - Team Pixdot
     """
@@ -102,6 +107,7 @@ def contact():
         server.starttls()
         server.login(GMAIL_USER, GMAIL_PASSWORD)
 
+        # Admin email
         admin_msg = MIMEMultipart()
         admin_msg["From"] = GMAIL_USER
         admin_msg["To"] = GMAIL_USER
@@ -109,6 +115,7 @@ def contact():
         admin_msg.attach(MIMEText(admin_body, "plain"))
         server.send_message(admin_msg)
 
+        # User reply
         user_msg = MIMEMultipart()
         user_msg["From"] = GMAIL_USER
         user_msg["To"] = email
@@ -118,6 +125,7 @@ def contact():
 
         server.quit()
         return jsonify({"message": "Message sent successfully via email!"}), 200
+
     except Exception as e:
         print("Email error:", str(e))
         return jsonify({"error": "Failed to send email."}), 500
@@ -128,7 +136,10 @@ def contact():
 @app.route("/api/login", methods=["POST"])
 def login():
     data = request.get_json()
-    if data.get("username") == USERNAME and data.get("password") == PASSWORD:
+    username = data.get("username")
+    password = data.get("password")
+
+    if username == USERNAME and password == PASSWORD:
         return jsonify({"success": True}), 200
     else:
         return jsonify({"success": False, "message": "Invalid credentials"}), 401
@@ -141,8 +152,10 @@ def get_case_studies():
     try:
         if os.path.exists(DATA_FILE):
             with open(DATA_FILE, "r", encoding="utf-8") as f:
-                return jsonify(json.load(f))
-        return jsonify([])
+                data = json.load(f)
+        else:
+            data = []
+        return jsonify(data)
     except Exception as e:
         print("Error reading case studies:", e)
         return jsonify({"error": "Failed to read case studies"}), 500
@@ -176,6 +189,7 @@ def add_case_study():
             json.dump(existing, f, indent=2)
 
         return jsonify({"success": True, "message": "Case study added"}), 201
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -186,17 +200,21 @@ def update_case_study(case_id):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             studies = json.load(f)
 
+        updated = False
         for i, study in enumerate(studies):
             if study["id"] == case_id:
                 studies[i] = {**study, **data, "id": case_id}
+                updated = True
                 break
-        else:
+
+        if not updated:
             return jsonify({"success": False, "message": "Not found"}), 404
 
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(studies, f, indent=2)
 
         return jsonify({"success": True, "message": "Updated"}), 200
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -205,10 +223,14 @@ def delete_case_study(case_id):
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
+
         updated = [item for item in data if item["id"] != case_id]
+
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(updated, f, indent=2)
+
         return jsonify({"success": True, "message": "Deleted"}), 200
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -216,9 +238,9 @@ def delete_case_study(case_id):
 # MAIN ENTRY POINT
 # ---------------------------
 if __name__ == "__main__":
-    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+    if not os.path.exists("uploads"):
+        os.makedirs("uploads")
     app.run(debug=True)
-
 
 
 
