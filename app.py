@@ -56,9 +56,16 @@ def upload_image():
         save_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
         file.save(save_path)
 
-        return jsonify({"imageUrl": f"/uploads/{unique_filename}"}), 200
+        # ❌ This returns only partial path
+        # return jsonify({"imageUrl": f"/uploads/{unique_filename}"})
+
+        # ✅ FIX: Return FULL image URL
+        full_url = f"https://pixdotbackend.onrender.com/uploads/{unique_filename}"
+        return jsonify({"imageUrl": full_url})  # 👈 this is key
+
     else:
         return jsonify({"error": "Invalid file type"}), 400
+
 
 # ---------------------------
 # CONTACT FORM EMAIL ROUTE
