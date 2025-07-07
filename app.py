@@ -168,11 +168,22 @@ def get_case_study(case_id):
         cursor.execute("SELECT * FROM case_studies WHERE id = %s", (case_id,))
         result = cursor.fetchone()
         db.close()
+
         if not result:
             return jsonify({"error": "Not found"}), 404
+
+        # Convert side_images and content from JSON string to Python array
+        result["sideImages"] = json.loads(result["side_images"]) if result["side_images"] else []
+        result["content"] = json.loads(result["content"]) if result["content"] else []
+
+        # Optional: remove original snake_case fields
+        del result["side_images"]
+        del result["content"]  # remove this if you renamed instead of added
+
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/add-case-study", methods=["POST"])
 def add_case_study():
