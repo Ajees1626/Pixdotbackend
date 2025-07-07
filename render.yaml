@@ -4,7 +4,8 @@ services:
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: python app.py
-    staticPublishPath: uploads
-    buildFilter:
-      paths:
-        - uploads/**
+    plan: free
+    disk:
+      name: uploads-disk
+      mountPath: uploads
+      sizeGB: 1

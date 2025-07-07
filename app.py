@@ -66,9 +66,9 @@ def upload_image():
         file.save(save_path)
 
         if "localhost" in request.host:
-            full_url = f"http://127.0.0.1:5000/uploads/{unique_filename}"
-        else:
             full_url = f"https://pixdotbackend.onrender.com/uploads/{unique_filename}"
+        else:
+           full_url = f"http://127.0.0.1:5000/uploads/{unique_filename}"
 
         return jsonify({"imageUrl": full_url}), 200
 
