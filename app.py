@@ -65,7 +65,7 @@ def upload_image():
         save_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
         file.save(save_path)
 
-        if request.host.startswith("localhost"):
+        if "localhost" in request.host:
             full_url = f"http://127.0.0.1:5000/uploads/{unique_filename}"
         else:
             full_url = f"https://pixdotbackend.onrender.com/uploads/{unique_filename}"
@@ -181,7 +181,7 @@ def get_case_study(case_id):
         result["content"] = json.loads(result["content"]) if result["content"] else []
 
         del result["side_images"]
-        del result["content"]
+        
 
         return jsonify(result)
     except Exception as e:
