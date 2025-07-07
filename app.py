@@ -64,7 +64,12 @@ def upload_image():
         unique_filename = f"{int(float(os.times()[4]*1000))}_{filename}"
         save_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
         file.save(save_path)
-        full_url = f"https://pixdotbackend.onrender.com/uploads/{unique_filename}"
+
+        if request.host.startswith("localhost"):
+            full_url = f"http://127.0.0.1:5000/uploads/{unique_filename}"
+        else:
+            full_url = f"https://pixdotbackend.onrender.com/uploads/{unique_filename}"
+
         return jsonify({"imageUrl": full_url}), 200
 
     return jsonify({"error": "Invalid file type"}), 400
@@ -172,18 +177,15 @@ def get_case_study(case_id):
         if not result:
             return jsonify({"error": "Not found"}), 404
 
-        # Convert side_images and content from JSON string to Python array
         result["sideImages"] = json.loads(result["side_images"]) if result["side_images"] else []
         result["content"] = json.loads(result["content"]) if result["content"] else []
 
-        # Optional: remove original snake_case fields
         del result["side_images"]
-        del result["content"]  # remove this if you renamed instead of added
+        del result["content"]
 
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 @app.route("/api/add-case-study", methods=["POST"])
 def add_case_study():
@@ -242,11 +244,24 @@ def delete_case_study(case_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 # ---------------------------
+# TEST DB CONNECTION ROUTE
+# ---------------------------
+@app.route("/api/test-db")
+def test_db():
+    try:
+        db = get_db_connection()
+        cursor = db.cursor()
+        cursor.execute("SELECT 1")
+        result = cursor.fetchone()
+        db.close()
+        return jsonify({"success": True, "result": result}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ---------------------------
 # MAIN ENTRY
 # ---------------------------
 if __name__ == "__main__":
     if not os.path.exists("uploads"):
         os.makedirs("uploads")
     app.run(debug=True)
-
-

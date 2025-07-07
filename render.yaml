@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: pixdot-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    staticPublishPath: uploads
+    buildFilter:
+      paths:
+        - uploads/**
