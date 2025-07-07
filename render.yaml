@@ -2,10 +2,14 @@ services:
   - type: web
     name: pixdot-backend
     env: python
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python app.py
-    plan: free
     disk:
       name: uploads-disk
       mountPath: uploads
       sizeGB: 1
+    routes:
+      - type: static
+        source: /uploads
+        path: /uploads
