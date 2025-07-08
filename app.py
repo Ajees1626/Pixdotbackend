@@ -8,6 +8,9 @@ import os
 import json
 from dotenv import load_dotenv
 from db import get_connection  # 🔁 Use Neon connection from db.py
+import cloudinary
+import cloudinary.uploader
+
 
 load_dotenv()
 
@@ -25,6 +28,13 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 GMAIL_USER = os.getenv("GMAIL_USER")
 GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD")
 
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET")
+)
+
+
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 # ---------------------------
@@ -36,33 +46,21 @@ def allowed_file(filename):
 # ---------------------------
 # STATIC FILE SERVE
 # ---------------------------
-@app.route("/uploads/<filename>")
-def uploaded_file(filename):
-    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
-
-# ---------------------------
-# IMAGE UPLOAD ROUTE
-# ---------------------------
 @app.route("/api/upload-image", methods=["POST"])
 def upload_image():
     file = request.files.get("image") or request.files.get("file")
     if not file or file.filename == "":
         return jsonify({"error": "No selected file"}), 400
 
-    if allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        unique_filename = f"{int(float(os.times()[4]*1000))}_{filename}"
-        save_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
-        file.save(save_path)
+    try:
+        upload_result = cloudinary.uploader.upload(file)
+        return jsonify({"imageUrl": upload_result["secure_url"]}), 200
+    except Exception as e:
+        print("Cloudinary Upload Error:", str(e))
+        return jsonify({"error": "Cloudinary upload failed"}), 500
 
-        if "localhost" in request.host:
-            full_url = f"http://127.0.0.1:5000/uploads/{unique_filename}"
-        else:
-            full_url = f"https://pixdotbackend.onrender.com/uploads/{unique_filename}"
 
-        return jsonify({"imageUrl": full_url}), 200
 
-    return jsonify({"error": "Invalid file type"}), 400
 
 # ---------------------------
 # CONTACT EMAIL ROUTE
