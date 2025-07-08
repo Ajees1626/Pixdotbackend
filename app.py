@@ -167,23 +167,17 @@ def get_case_study(case_id):
         cur = conn.cursor()
         cur.execute("SELECT * FROM case_studies WHERE id = %s", (case_id,))
         row = cur.fetchone()
-
+        columns = [desc[0] for desc in cur.description]
         if not row:
-            cur.close()
-            conn.close()
             return jsonify({"error": "Not found"}), 404
 
-        # ✅ Convert row to dict with camelCase mapping
-        columns = [desc[0] for desc in cur.description]
         result = dict(zip(columns, row))
-
-        # ✅ Rename snake_case to camelCase for frontend
         result["sideImages"] = result.pop("side_images", [])
         result["content"] = result.get("content", [])
 
         cur.close()
         conn.close()
-        return jsonify(result), 200
+        return jsonify(result)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
