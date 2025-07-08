@@ -6,8 +6,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
 import json
-import mysql.connector
 from dotenv import load_dotenv
+from db import get_connection  # 🔁 Use Neon connection from db.py
 
 load_dotenv()
 
@@ -25,13 +25,6 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 GMAIL_USER = os.getenv("GMAIL_USER")
 GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD")
 
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
-    "database": os.getenv("DB_NAME")
-}
-
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 # ---------------------------
@@ -39,9 +32,6 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 # ---------------------------
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def get_db_connection():
-    return mysql.connector.connect(**DB_CONFIG)
 
 # ---------------------------
 # STATIC FILE SERVE
@@ -151,39 +141,42 @@ def login():
     return jsonify({"success": False, "message": "Invalid credentials"}), 401
 
 # ---------------------------
-# CASE STUDY ROUTES (MySQL)
+# CASE STUDY ROUTES (Neon/PostgreSQL)
 # ---------------------------
 @app.route("/api/case-studies", methods=["GET"])
 def get_case_studies():
     try:
-        db = get_db_connection()
-        cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM case_studies")
-        rows = cursor.fetchall()
-        db.close()
-        return jsonify(rows)
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM case_studies ORDER BY id DESC")
+        rows = cur.fetchall()
+        columns = [desc[0] for desc in cur.description]
+        result = [dict(zip(columns, row)) for row in rows]
+        cur.close()
+        conn.close()
+        return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/case-studies/<int:case_id>", methods=["GET"])
 def get_case_study(case_id):
     try:
-        db = get_db_connection()
-        cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM case_studies WHERE id = %s", (case_id,))
-        result = cursor.fetchone()
-        db.close()
-
-        if not result:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM case_studies WHERE id = %s", (case_id,))
+        row = cur.fetchone()
+        columns = [desc[0] for desc in cur.description]
+        if not row:
             return jsonify({"error": "Not found"}), 404
 
-        result["sideImages"] = json.loads(result["side_images"]) if result["side_images"] else []
-        result["content"] = json.loads(result["content"]) if result["content"] else []
+        result = dict(zip(columns, row))
+        result["sideImages"] = result.pop("side_images", [])
+        result["content"] = result.get("content", [])
 
-        del result["side_images"]
-        
-
+        cur.close()
+        conn.close()
         return jsonify(result)
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -191,19 +184,20 @@ def get_case_study(case_id):
 def add_case_study():
     try:
         data = request.get_json()
-        db = get_db_connection()
-        cursor = db.cursor()
-        cursor.execute("""
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("""
             INSERT INTO case_studies
             (title, client, date, duration, industry, category, image, side_images, content)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb)
         """, (
             data["title"], data["client"], data["date"], data["duration"],
             data["industry"], data["category"], data["image"],
             json.dumps(data["side_images"]), json.dumps(data["content"])
         ))
-        db.commit()
-        db.close()
+        conn.commit()
+        cur.close()
+        conn.close()
         return jsonify({"success": True, "message": "Case study added"}), 201
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -212,21 +206,22 @@ def add_case_study():
 def update_case_study(case_id):
     try:
         data = request.get_json()
-        db = get_db_connection()
-        cursor = db.cursor()
-        cursor.execute("""
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("""
             UPDATE case_studies SET
             title=%s, client=%s, date=%s, duration=%s,
             industry=%s, category=%s, image=%s,
-            side_images=%s, content=%s
+            side_images=%s::jsonb, content=%s::jsonb
             WHERE id=%s
         """, (
             data["title"], data["client"], data["date"], data["duration"],
             data["industry"], data["category"], data["image"],
             json.dumps(data["side_images"]), json.dumps(data["content"]), case_id
         ))
-        db.commit()
-        db.close()
+        conn.commit()
+        cur.close()
+        conn.close()
         return jsonify({"success": True, "message": "Updated"}), 200
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -234,11 +229,12 @@ def update_case_study(case_id):
 @app.route("/api/delete-case-study/<int:case_id>", methods=["DELETE"])
 def delete_case_study(case_id):
     try:
-        db = get_db_connection()
-        cursor = db.cursor()
-        cursor.execute("DELETE FROM case_studies WHERE id = %s", (case_id,))
-        db.commit()
-        db.close()
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM case_studies WHERE id = %s", (case_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
         return jsonify({"success": True, "message": "Deleted"}), 200
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -246,17 +242,18 @@ def delete_case_study(case_id):
 # ---------------------------
 # TEST DB CONNECTION ROUTE
 # ---------------------------
-@app.route("/api/test-db")
+@app.route("/test-db")
 def test_db():
     try:
-        db = get_db_connection()
-        cursor = db.cursor()
-        cursor.execute("SELECT 1")
-        result = cursor.fetchone()
-        db.close()
-        return jsonify({"success": True, "result": result}), 200
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT NOW()")
+        result = cur.fetchone()
+        cur.close()
+        conn.close()
+        return {"status": "success", "time": str(result[0])}
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return {"status": "error", "message": str(e)}
 
 # ---------------------------
 # MAIN ENTRY
