@@ -54,6 +54,7 @@ def upload_image():
 
     try:
         upload_result = cloudinary.uploader.upload(file)
+        print("Upload Result:", upload_result)  # Debug log
         return jsonify({"imageUrl": upload_result["secure_url"]}), 200
     except Exception as e:
         print("Cloudinary Upload Error:", str(e))
