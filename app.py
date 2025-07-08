@@ -11,7 +11,6 @@ from db import get_connection  # 🔁 Use Neon connection from db.py
 import cloudinary
 import cloudinary.uploader
 
-
 load_dotenv()
 
 app = Flask(__name__)
@@ -20,8 +19,8 @@ CORS(app)
 # ---------------------------
 # CONFIGURATION
 # ---------------------------
-USERNAME = "Pixadmin"
-PASSWORD = "Pixd.t"
+USERNAME = os.getenv("USERNAME")
+PASSWORD = os.getenv("USERPASS")
 UPLOAD_FOLDER = "uploads"
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 
@@ -33,7 +32,6 @@ cloudinary.config(
     api_key=os.getenv("CLOUDINARY_API_KEY"),
     api_secret=os.getenv("CLOUDINARY_API_SECRET")
 )
-
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
@@ -59,9 +57,6 @@ def upload_image():
     except Exception as e:
         print("Cloudinary Upload Error:", str(e))
         return jsonify({"error": "Cloudinary upload failed"}), 500
-
-
-
 
 # ---------------------------
 # CONTACT EMAIL ROUTE
@@ -127,17 +122,25 @@ def contact():
         return jsonify({"error": "Failed to send email."}), 500
 
 # ---------------------------
-# ADMIN LOGIN
+# ✅ ADMIN LOGIN (SAFELY HANDLED JSON)
 # ---------------------------
 @app.route("/api/login", methods=["POST"])
 def login():
-    data = request.get_json()
-    username = data.get("username")
-    password = data.get("password")
+    try:
+        data = request.get_json(force=True)
+        if not data:
+            return jsonify({"success": False, "message": "No data received"}), 400
 
-    if username == USERNAME and password == PASSWORD:
-        return jsonify({"success": True}), 200
-    return jsonify({"success": False, "message": "Invalid credentials"}), 401
+        username = data.get("username")
+        password = data.get("password")
+
+        if username == USERNAME and password == PASSWORD:
+            return jsonify({"success": True}), 200
+        return jsonify({"success": False, "message": "Invalid credentials"}), 401
+
+    except Exception as e:
+        print("Login error:", str(e))
+        return jsonify({"success": False, "message": "Server error"}), 500
 
 # ---------------------------
 # CASE STUDY ROUTES (Neon/PostgreSQL)
