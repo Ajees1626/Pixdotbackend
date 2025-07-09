@@ -104,9 +104,17 @@ Pixdot Solutions Team
         user_message = f"""
         Dear {data.get('firstName', '')},
 
-        Thank you for submitting your message. Our team at Pixdot Solutions will contact you shortly.
+        Thank you for reaching out to Pixdot!
 
-        Pixdot Solutions Team
+    We’ve received your message, and our team will get back to you shortly. We appreciate your interest and look forward to connecting with you soon.
+
+    📞 Need urgent help? Call us at +91-87789 96278, 87789 64644
+
+    Meanwhile, feel free to explore our recent work: 
+    🌐 Website: www.pixdotsolutins.com 
+
+    Have a great day! 
+    - Team Pixdot
         """
 
         user_msg = MIMEMultipart()
