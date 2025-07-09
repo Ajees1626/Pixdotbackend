@@ -60,17 +60,69 @@ def contact():
         server.starttls()
         server.login(GMAIL_USER, GMAIL_PASSWORD)
 
+        # Format for Admin
+        admin_message = f"""
+You have received a new contact message:
+
+Name: {data.get('firstName', '')} {data.get('lastName', '')}
+Email: {data.get('email', '')}
+Phone: {data.get('phone', '')}
+Company: {data.get('company', '')}
+Subject: {data.get('subject', '')}
+Message: {data.get('message', '')}
+
+--
+Thank you for reaching out to us.
+Pixdot Solutions
+"""
+
+        # Format for User
+        user_message = f"""
+Dear {data.get('firstName', '')} {data.get('lastName', '')},
+
+Thank you for submitting your message. Our team at Pixdot Solutions will contact you shortly.
+
+Here is a copy of your message:
+
+Subject: {data.get('subject', '')}
+Message: {data.get('message', '')}
+
+--
+Pixdot Solutions Team
+"""
+
+        # Send to Admin
         admin_msg = MIMEMultipart()
         admin_msg["From"] = GMAIL_USER
         admin_msg["To"] = GMAIL_USER
-        admin_msg["Subject"] = f"New Contact - {data.get('subject')}"
-        admin_msg.attach(MIMEText(str(data), "plain"))
+        admin_msg["Subject"] = f"New Contact - {data.get('subject', '')}"
+        admin_msg.attach(MIMEText(admin_message.strip(), "plain"))
         server.send_message(admin_msg)
+
+        # Send to User
+      # Send to User
+        user_message = f"""
+        Dear {data.get('firstName', '')},
+
+        Thank you for submitting your message. Our team at Pixdot Solutions will contact you shortly.
+
+        Pixdot Solutions Team
+        """
+
+        user_msg = MIMEMultipart()
+        user_msg["From"] = GMAIL_USER
+        user_msg["To"] = data.get("email")
+        user_msg["Subject"] = "Thank you for contacting Pixdot Solutions"
+        user_msg.attach(MIMEText(user_message.strip(), "plain"))
+        server.send_message(user_msg)
+
 
         server.quit()
         return jsonify({"message": "Message sent"}), 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 # Case Study: GET All
 @app.route("/api/case-studies", methods=["GET"])
