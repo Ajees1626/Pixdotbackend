@@ -104,7 +104,7 @@ Pixdot Solutions Team
         user_message = f"""
         Dear {data.get('firstName', '')},
 
-        Thank you for reaching out to Pixdot!
+    Thank you for reaching out to Pixdot!
 
     We’ve received your message, and our team will get back to you shortly. We appreciate your interest and look forward to connecting with you soon.
 
